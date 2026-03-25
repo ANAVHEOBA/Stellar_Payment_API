@@ -142,7 +142,18 @@ export default function PaymentPage() {
   const isCompleted = payment.status === "completed";
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-16">
+    <main className="relative mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-16">
+      {/* Global Loading Overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-white/20 border-t-mint"></div>
+            <p className="text-lg font-semibold text-white">Processing Transaction...</p>
+            <p className="text-sm text-slate-400">Please wait while we confirm your payment</p>
+          </div>
+        </div>
+      )}
+
       <header className="flex flex-col gap-2">
         <p className="font-mono text-sm uppercase tracking-[0.3em] text-mint">Payment Details</p>
         <h1 className="text-3xl font-semibold text-white">Complete Payment</h1>

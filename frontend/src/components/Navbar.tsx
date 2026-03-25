@@ -19,6 +19,7 @@ export default function Navbar() {
 
   return (
     <nav className="border-b border-white/10 bg-black/50 backdrop-blur dark:border-white/10 dark:bg-black/50">
+    <nav className="border-b border-white/10 bg-black/50 backdrop-blur">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -34,39 +35,35 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm text-slate-300 transition-colors hover:text-white dark:text-slate-300 dark:hover:text-white"
+                className="text-sm text-slate-300 transition-colors hover:text-white"
               >
                 {link.label}
               </Link>
             ))}
-            <ThemeToggle />
           </div>
 
-          {/* Mobile Menu Button and Theme Toggle */}
-          <div className="flex items-center gap-3 md:hidden">
-            <ThemeToggle />
-            <button
-              onClick={toggleMenu}
-              className="flex flex-col gap-1.5"
-              aria-label="Toggle menu"
-            >
-              <span
-                className={`block h-0.5 w-6 bg-white transition-all ${
-                  isMenuOpen ? "translate-y-2 rotate-45" : ""
-                }`}
-              ></span>
-              <span
-                className={`block h-0.5 w-6 bg-white transition-all ${
-                  isMenuOpen ? "opacity-0" : ""
-                }`}
-              ></span>
-              <span
-                className={`block h-0.5 w-6 bg-white transition-all ${
-                  isMenuOpen ? "-translate-y-2 -rotate-45" : ""
-                }`}
-              ></span>
-            </button>
-          </div>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={toggleMenu}
+            className="flex flex-col gap-1.5 md:hidden"
+            aria-label="Toggle menu"
+          >
+            <span
+              className={`block h-0.5 w-6 bg-white transition-all ${
+                isMenuOpen ? "translate-y-2 rotate-45" : ""
+              }`}
+            ></span>
+            <span
+              className={`block h-0.5 w-6 bg-white transition-all ${
+                isMenuOpen ? "opacity-0" : ""
+              }`}
+            ></span>
+            <span
+              className={`block h-0.5 w-6 bg-white transition-all ${
+                isMenuOpen ? "-translate-y-2 -rotate-45" : ""
+              }`}
+            ></span>
+          </button>
         </div>
 
         {/* Mobile Menu */}
@@ -78,7 +75,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setIsMenuOpen(false)}
-                  className="text-sm text-slate-300 transition-colors hover:text-white dark:text-slate-300 dark:hover:text-white"
+                  className="text-sm text-slate-300 transition-colors hover:text-white"
                 >
                   {link.label}
                 </Link>

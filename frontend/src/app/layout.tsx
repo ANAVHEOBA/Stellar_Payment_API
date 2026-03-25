@@ -19,6 +19,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Navbar />
           {children}
         </ThemeProvider>
+    <html lang="en">
+      <body className={`${spaceGrotesk.variable} ${spaceMono.variable} min-h-screen font-sans`}>
+        <Navbar />
+        {children}
       </body>
     </html>
   );
