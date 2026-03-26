@@ -6,8 +6,10 @@ import { findMatchingPayment } from "../lib/stellar.js";
 import { sendWebhook } from "../lib/webhooks.js";
 import rateLimit from "express-rate-limit";
 import { validateUuidParam } from "../lib/validate-uuid.js";
+import { createCreatePaymentRateLimit } from "../lib/create-payment-rate-limit.js";
 
 const router = express.Router();
+const createPaymentRateLimit = createCreatePaymentRateLimit();
 
 const verifyPaymentRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -106,8 +108,10 @@ function validateCreatePayment(body) {
  *                   type: string
  *       400:
  *         description: Validation error
+ *       429:
+ *         description: Too many requests
  */
-router.post("/create-payment", async (req, res, next) => {
+router.post("/create-payment", createPaymentRateLimit, async (req, res, next) => {
   try {
     const error = validateCreatePayment(req.body || {});
     if (error) {

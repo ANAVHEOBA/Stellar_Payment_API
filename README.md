@@ -41,6 +41,8 @@ STELLAR_NETWORK=testnet
 STELLAR_HORIZON_URL=
 USDC_ISSUER=your_usdc_issuer
 PAYMENT_LINK_BASE=http://localhost:3000
+CREATE_PAYMENT_RATE_LIMIT_MAX=50
+CREATE_PAYMENT_RATE_LIMIT_WINDOW_MS=60000
 ```
 
 4. Apply schema in Supabase:
@@ -72,6 +74,8 @@ API will be available at `http://localhost:4000`.
   "webhook_url": "https://merchant.app/webhooks/stellar"
 }
 ```
+
+`POST /api/create-payment` is rate-limited per API key. By default the backend allows 50 requests per 60 seconds and returns `429 Too Many Requests` with a `Retry-After` header when the limit is exceeded.
 
 ### Verify Payment
 

@@ -24,6 +24,26 @@ function validateEnvironmentVariables() {
     process.exit(1);
   }
 
+  const optionalPositiveIntegers = [
+    'CREATE_PAYMENT_RATE_LIMIT_MAX',
+    'CREATE_PAYMENT_RATE_LIMIT_WINDOW_MS',
+  ];
+
+  for (const key of optionalPositiveIntegers) {
+    const value = process.env[key];
+
+    if (!value) {
+      continue;
+    }
+
+    const parsedValue = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+      console.error(`❌ Invalid ${key}: ${value}`);
+      console.error(`${key} must be a positive integer.`);
+      process.exit(1);
+    }
+  }
+
   console.log('✅ Environment variables validated');
 }
 
