@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHydrateMerchantStore } from "@/lib/merchant-store";
+import MerchantProfileCard from "@/components/MerchantProfileCard";
 
 type AppNavLink = {
   href: string;
@@ -13,7 +14,7 @@ type AppNavLink = {
 type DashboardNavLink = {
   href: string;
   label: string;
-  icon: (active: boolean) => JSX.Element;
+  icon: (active: boolean) => React.ReactNode;
   enabled: boolean;
 };
 
@@ -218,6 +219,8 @@ export default function Navbar() {
                 {networkLabel}
               </span>
 
+              <MerchantProfileCard />
+
               {!showMobileBottomNav && (
                 <button
                   type="button"
@@ -247,6 +250,9 @@ export default function Navbar() {
 
           {!showMobileBottomNav && isMenuOpen && (
             <div className="border-t border-white/10 py-4 md:hidden">
+              <div className="mb-4 flex items-center justify-center">
+                <MerchantProfileCard />
+              </div>
               <div className="flex flex-col gap-4">
                 {appNavLinks.map((link) => (
                   <Link
