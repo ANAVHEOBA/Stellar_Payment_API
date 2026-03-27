@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import CopyButton from "./CopyButton";
 import toast from "react-hot-toast";
@@ -52,8 +52,39 @@ export default function CreatePaymentForm() {
   const apiKey = useMerchantApiKey();
   const hydrated = useMerchantHydrated();
   const trustedAddresses = useMerchantTrustedAddresses();
+  const [useSessionBranding, setUseSessionBranding] = useLocalStorage("payment_use_branding", false);
+  const [branding, setBranding] = useLocalStorage("payment_branding", DEFAULT_BRANDING);
+  const [selectedTrustedAddress, setSelectedTrustedAddress] = useLocalStorage("payment_trusted_address", "");
 
   useHydrateMerchantStore();
+
+  // ── Rate-limit countdown ──────────────────────────────────
+  const [retryAfter, setRetryAfter] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (retryAfter <= 0) {
+      if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+      return;
+    }
+
+    retryTimerRef.current = setInterval(() => {
+      setRetryAfter((prev) => {
+        if (prev <= 1) {
+          clearInterval(retryTimerRef.current!);
+          retryTimerRef.current = null;
+          setError(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+    };
+  }, [retryAfter]);
+  // ──────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -100,6 +131,19 @@ export default function CreatePaymentForm() {
       });
 
       const data = await res.json();
+
+      // ── 429 Rate-limit handling ─────────────────────────────
+      if (res.status === 429) {
+        const retryHeader = res.headers.get("Retry-After");
+        const seconds = retryHeader ? Math.max(1, Math.ceil(Number(retryHeader))) : 60;
+        setRetryAfter(seconds);
+        const msg = t("rateLimitError", { seconds: String(seconds) });
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+      // ────────────────────────────────────────────────────────
+
       if (!res.ok)
         throw new Error(data.error ?? t("failedCreate"));
 
@@ -136,6 +180,7 @@ export default function CreatePaymentForm() {
     localStorage.removeItem("payment_trusted_address");
 
     setError(null);
+    setRetryAfter(0);
   };
 
   const handleTrustedAddressSelect = (addressId: string) => {
@@ -243,7 +288,27 @@ export default function CreatePaymentForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
-      {error && (
+      {error && retryAfter > 0 && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300"
+        >
+          <svg className="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">{t("rateLimitError", { seconds: String(retryAfter) })}</span>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-yellow-500/20">
+              <div
+                className="h-full rounded-full bg-yellow-400 transition-all duration-1000 ease-linear"
+                style={{ width: "100%" }}
+                key={retryAfter}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {error && retryAfter <= 0 && (
         <div
           role="alert"
           className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400"
@@ -440,7 +505,7 @@ export default function CreatePaymentForm() {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || retryAfter > 0}
         className="group relative flex h-12 items-center justify-center rounded-xl bg-mint px-6 font-bold text-black transition-all hover:bg-glow disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? (
@@ -463,6 +528,8 @@ export default function CreatePaymentForm() {
             </svg>
             {t("generating")}
           </span>
+        ) : retryAfter > 0 ? (
+          t("retryWait", { seconds: String(retryAfter) })
         ) : (
           t("generate")
         )}
