@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, JSX } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+/* ------------------------------------------------------------------ */
+/*  Command definitions                                                */
+/* ------------------------------------------------------------------ */
 
 type Command = {
   id: string;
   label: string;
   description: string;
   href: string;
-  icon: JSX.Element;
+  icon: React.ReactNode;
   keywords: string[];
 };
 
@@ -112,7 +115,9 @@ const commands: Command[] = [
   },
 ];
 
-
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
 
 export default function CommandPalette() {
   const [open, setOpen] = useState(false);
