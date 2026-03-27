@@ -28,6 +28,35 @@ const defaultVerifyPaymentRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+function applyPaymentFilters(query, req) {
+  const { status, asset, date_from: dateFrom, date_to: dateTo, search } = req.query;
+
+  if (typeof status === "string" && status.length > 0) {
+    query = query.eq("status", status);
+  }
+
+  if (typeof asset === "string" && asset.length > 0) {
+    query = query.eq("asset", asset);
+  }
+
+  if (typeof dateFrom === "string" && dateFrom.length > 0) {
+    query = query.gte("created_at", `${dateFrom}T00:00:00.000Z`);
+  }
+
+  if (typeof dateTo === "string" && dateTo.length > 0) {
+    query = query.lte("created_at", `${dateTo}T23:59:59.999Z`);
+  }
+
+  if (typeof search === "string" && search.trim().length > 0) {
+    const term = search.trim().replaceAll(",", "\\,");
+    query = query.or(
+      `id.ilike.%${term}%,description.ilike.%${term}%,recipient.ilike.%${term}%`,
+    );
+  }
+
+  return query;
+}
+
 function createPaymentsRouter({
   verifyPaymentRateLimit = defaultVerifyPaymentRateLimit,
 } = {}) {
@@ -485,22 +514,30 @@ const webhookResult = await sendWebhook(
 
       const offset = (page - 1) * limit;
 
-      const { count: totalCount, error: countError } = await supabase
+      let countQuery = supabase
         .from("payments")
         .select("*", { count: "exact", head: true })
         .eq("merchant_id", req.merchant.id);
+
+      countQuery = applyPaymentFilters(countQuery, req);
+
+      const { count: totalCount, error: countError } = await countQuery;
 
       if (countError) {
         countError.status = 500;
         throw countError;
       }
 
-      const { data: payments, error: dataError } = await supabase
+      let dataQuery = supabase
         .from("payments")
         .select(
           "id, amount, asset, asset_issuer, recipient, description, status, tx_id, created_at"
         )
-        .eq("merchant_id", req.merchant.id)
+        .eq("merchant_id", req.merchant.id);
+
+      dataQuery = applyPaymentFilters(dataQuery, req);
+
+      const { data: payments, error: dataError } = await dataQuery
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 
