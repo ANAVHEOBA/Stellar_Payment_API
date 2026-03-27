@@ -10,6 +10,20 @@ export interface PaymentTransactionParams {
   networkPassphrase: string;
 }
 
+export interface PathPaymentTransactionParams {
+  sourcePublicKey: string;
+  destinationPublicKey: string;
+  sendMax: string;
+  sendAssetCode: string;
+  sendAssetIssuer: string | null;
+  destAmount: string;
+  destAssetCode: string;
+  destAssetIssuer: string | null;
+  path: Array<{ asset_code: string; asset_issuer: string | null }>;
+  horizonUrl: string;
+  networkPassphrase: string;
+}
+
 /**
  * Resolve a Stellar asset based on code and issuer
  */
@@ -61,4 +75,125 @@ export async function buildPaymentTransaction(
       `Failed to build payment transaction: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
+}
+
+/**
+ * Build a path payment (strict receive) transaction.
+ * The sender pays up to `sendMax` of the source asset so that the
+ * destination receives exactly `destAmount` of the destination asset.
+ */
+export async function buildPathPaymentTransaction(
+  params: PathPaymentTransactionParams
+): Promise<string> {
+  try {
+    const server = new StellarSdk.Horizon.Server(params.horizonUrl);
+    const sourceAccount = await server.loadAccount(params.sourcePublicKey);
+
+    const sendAsset = resolveAsset(params.sendAssetCode, params.sendAssetIssuer);
+    const destAsset = resolveAsset(params.destAssetCode, params.destAssetIssuer);
+
+    const stellarPath = params.path.map((p) => resolveAsset(p.asset_code, p.asset_issuer));
+
+    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: params.networkPassphrase,
+    })
+      .addOperation(
+        StellarSdk.Operation.pathPaymentStrictReceive({
+          sendAsset,
+          sendMax: params.sendMax,
+          destination: params.destinationPublicKey,
+          destAsset,
+          destAmount: params.destAmount,
+          path: stellarPath,
+        })
+      )
+      .setTimeout(300)
+      .build();
+
+    return transaction.toXDR();
+  } catch (error) {
+    throw new Error(
+      `Failed to build path payment transaction: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
+
+/**
+ * SEP-0001: Discover the anchor services from stellar.toml
+ */
+export async function getAnchorServices(domain: string) {
+  try {
+    const toml = await StellarSdk.StellarToml.Resolver.resolve(domain);
+    return {
+      transferServer: toml.TRANSFER_SERVER_SEP0024 || toml.TRANSFER_SERVER,
+      webAuthEndpoint: toml.WEB_AUTH_ENDPOINT,
+      signingKey: toml.SIGNING_KEY,
+    };
+  } catch (error) {
+    throw new Error(`Failed to discover anchor services for ${domain}: ${error}`);
+  }
+}
+
+/**
+ * SEP-0010: Authenticate with the anchor to get a JWT
+ */
+export async function authenticateWithAnchor(
+  account: string,
+  authEndpoint: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<string> {
+  // 1. Fetch challenge from anchor
+  const challengeRes = await fetch(`${authEndpoint}?account=${account}`);
+  const challengeData = await challengeRes.json();
+  
+  if (!challengeData.transaction) {
+    throw new Error("Failed to get challenge transaction from anchor");
+  }
+
+  // 2. Sign challenge with user's wallet
+  const signedXDR = await signTransaction(challengeData.transaction);
+
+  // 3. Submit signed challenge to get JWT
+  const loginRes = await fetch(authEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transaction: signedXDR }),
+  });
+  
+  const loginData = await loginRes.json();
+  if (!loginData.token) {
+    throw new Error("Failed to authenticate with anchor: No token returned");
+  }
+
+  return loginData.token;
+}
+
+/**
+ * SEP-0024: Initiate a hosted withdrawal to get the interactive URL
+ */
+export async function initiateWithdrawal(
+  transferServer: string,
+  jwt: string,
+  assetCode: string,
+  account: string
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("asset_code", assetCode);
+  formData.append("account", account);
+
+  const res = await fetch(`${transferServer}/transactions/withdraw/interactive`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!data.url) {
+    throw new Error("Failed to initiate withdrawal: No URL returned");
+  }
+
+  return data.url;
 }

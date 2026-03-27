@@ -13,16 +13,20 @@ export function signPayload(rawBody, secret) {
 
 function parseSignatureHeader(signatureHeader) {
   if (typeof signatureHeader !== "string") return null;
+
   const trimmed = signatureHeader.trim();
   if (!trimmed.startsWith("sha256=")) return null;
+
   const signature = trimmed.slice("sha256=".length);
   if (!/^[a-f0-9]{64}$/i.test(signature)) return null;
+
   return signature.toLowerCase();
 }
 
 function signaturesEqual(a, b) {
   const aBuffer = Buffer.from(a, "utf8");
   const bBuffer = Buffer.from(b, "utf8");
+
   if (aBuffer.length !== bBuffer.length) return false;
   return timingSafeEqual(aBuffer, bBuffer);
 }

@@ -43,30 +43,32 @@ const swaggerSpec = swaggerJsdoc({
     info: {
       title: "Stellar Payment API",
       version: "0.1.0",
-      description: "API for creating and verifying Stellar network payments"
+      description: "API for creating and verifying Stellar network payments",
     },
-    servers: [{ url: `http://localhost:${port}` }]
+    servers: [{ url: `http://localhost:${port}` }],
   },
-  apis: ["./src/routes/*.js"]
+  apis: ["./src/routes/*.js"],
 });
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
-  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:3000'];
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : ["http://localhost:3000"];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
 
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
@@ -146,7 +148,8 @@ app.use((err, req, res, next) => {
 });
 
 // Verify pg pool reaches Postgres before accepting traffic
-pool.query("SELECT 1")
+pool
+  .query("SELECT 1")
   .then(() => {
     console.log("✅ pg pool connected (Supabase pooler)");
   })

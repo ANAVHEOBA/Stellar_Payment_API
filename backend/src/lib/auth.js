@@ -1,4 +1,31 @@
-export function createApiKeyAuth({ supabaseClient = null } = {}) {
+import bcrypt from "bcryptjs";
+import { recordMerchantApiUsage } from "./api-usage.js";
+
+const SALT_ROUNDS = 12;
+
+/**
+ * Hash a plain-text merchant password with bcrypt.
+ * @param {string} plaintext
+ * @returns {Promise<string>} bcrypt hash
+ */
+export async function hashPassword(plaintext) {
+  return bcrypt.hash(plaintext, SALT_ROUNDS);
+}
+
+/**
+ * Verify a plain-text password against a stored bcrypt hash.
+ * @param {string} plaintext
+ * @param {string} hash
+ * @returns {Promise<boolean>}
+ */
+export async function verifyPassword(plaintext, hash) {
+  return bcrypt.compare(plaintext, hash);
+}
+
+export function createApiKeyAuth({
+  supabaseClient = null,
+  usageRecorder = recordMerchantApiUsage,
+} = {}) {
   return async function requireApiKeyAuth(req, res, next) {
     try {
       const client = supabaseClient || (await import("./supabase.js")).supabase;
@@ -11,7 +38,9 @@ export function createApiKeyAuth({ supabaseClient = null } = {}) {
 
       const { data: merchant, error } = await client
         .from("merchants")
-        .select("id, email, business_name, notification_email")
+        .select(
+  "id, email, business_name, notification_email, branding_config, merchant_settings, webhook_secret, webhook_secret_old, webhook_secret_expiry, webhook_version, payment_limits"
+)
         .eq("api_key", apiKey)
         .maybeSingle();
 
@@ -25,6 +54,17 @@ export function createApiKeyAuth({ supabaseClient = null } = {}) {
       }
 
       req.merchant = merchant;
+
+      try {
+        await usageRecorder({
+          merchantId: merchant.id,
+          req,
+        });
+      } catch (usageError) {
+        // Usage metrics should never block API traffic.
+        console.warn("Failed to record merchant API usage:", usageError.message);
+      }
+
       next();
     } catch (err) {
       next(err);
