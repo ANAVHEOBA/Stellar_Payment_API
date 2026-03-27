@@ -8,6 +8,12 @@ import { validateUuidParam } from "../lib/validate-uuid.js";
 import { paymentZodSchema } from "../lib/request-schemas.js";
 import { createCreatePaymentRateLimit } from "../lib/create-payment-rate-limit.js";
 import { sendWebhook } from "../lib/webhooks.js";
+import {
+  connectRedisClient,
+  getCachedPayment,
+  setCachedPayment,
+  invalidatePaymentCache,
+} from "../lib/redis.js";
 
 const createPaymentRateLimit = createCreatePaymentRateLimit();
 
@@ -171,6 +177,13 @@ function createPaymentsRouter({
    */
   router.get("/payment-status/:id", validateUuidParam(), async (req, res, next) => {
     try {
+      // --- Redis read-through cache ---
+      const redis = await connectRedisClient();
+      const cached = await getCachedPayment(redis, req.params.id);
+      if (cached) {
+        return res.json({ payment: cached });
+      }
+
       const { data, error } = await supabase
         .from("payments")
         .select(
@@ -187,6 +200,9 @@ function createPaymentsRouter({
       if (!data) {
         return res.status(404).json({ error: "Payment not found" });
       }
+
+      // Cache the result for ~2 s to absorb polling bursts
+      await setCachedPayment(redis, req.params.id, data);
 
       res.json({ payment: data });
     } catch (err) {
@@ -278,6 +294,10 @@ function createPaymentsRouter({
           updateError.status = 500;
           throw updateError;
         }
+
+        // --- Invalidate cache so next poll sees confirmed status immediately ---
+        const redis = await connectRedisClient();
+        await invalidatePaymentCache(redis, data.id);
 
         const merchantSecret = data.merchants?.webhook_secret;
 
