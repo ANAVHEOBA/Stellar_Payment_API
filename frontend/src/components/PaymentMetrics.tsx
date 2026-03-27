@@ -48,6 +48,8 @@ interface MetricsResponse {
   }>;
   total_volume: number;
   total_payments: number;
+  confirmed_count: number;
+  success_rate: number;
 }
 
 const CHART_HEIGHT = 300;
@@ -341,7 +343,7 @@ export default function PaymentMetrics() {
   return (
     <div className="flex flex-col gap-6">
       {summary && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
             <p className="font-mono text-xs uppercase tracking-wider text-slate-400">
               {t("sevenDayVolume")}
@@ -365,6 +367,32 @@ export default function PaymentMetrics() {
               <p className="text-sm text-slate-400">
                 {t("paymentsCount", { count: summary.total_payments })}
               </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <p className="font-mono text-xs uppercase tracking-wider text-slate-400">
+              Confirmed
+            </p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-green-400">
+                {summary.confirmed_count}
+              </p>
+              <p className="text-sm text-slate-400">
+                {summary.confirmed_count === 1 ? "intent" : "intents"}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <p className="font-mono text-xs uppercase tracking-wider text-slate-400">
+              Success Rate
+            </p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-green-400">
+                {summary.success_rate}
+              </p>
+              <p className="text-sm text-slate-400">%</p>
             </div>
           </div>
         </div>
