@@ -20,15 +20,15 @@ export default function AuthenticatedLayout({
 
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-black">
+      <div className="flex min-h-screen overflow-x-hidden bg-black">
         <Sidebar
           mobileOpen={mobileSidebarOpen}
           onMobileOpenChange={setMobileSidebarOpen}
         />
         <PaymentToastListener />
 
-        <main className="flex-1">
-          <div className="mx-auto flex max-w-7xl flex-col p-6 lg:p-10">
+        <main className="min-w-0 flex-1 overflow-x-hidden">
+          <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col p-6 lg:p-10">
             <header className="mb-10 flex flex-col gap-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -63,7 +63,7 @@ export default function AuthenticatedLayout({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
-              className="pb-10"
+              className="min-w-0 pb-10"
             >
               {children}
             </motion.section>
