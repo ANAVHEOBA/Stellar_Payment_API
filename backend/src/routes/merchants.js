@@ -13,6 +13,11 @@ import {
   testWebhookSchema,
 } from "../lib/request-schemas.js";
 import { merchantService } from "../services/merchantService.js";
+import {
+  createWebhookDomainVerificationState,
+  readWebhookDomainVerification,
+  verifyWebhookDomain,
+} from "../lib/webhook-domain-verification.js";
 
 const defaultMerchantRegistrationRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -455,7 +460,7 @@ function createMerchantsRouter({
     try {
       const { data, error } = await supabase
         .from("merchants")
-        .select("webhook_url, webhook_secret")
+        .select("webhook_url, webhook_secret, metadata")
         .eq("id", req.merchant.id)
         .single();
 
@@ -474,6 +479,10 @@ function createMerchantsRouter({
       res.json({
         webhook_url: data.webhook_url || "",
         webhook_secret_masked: maskedSecret,
+        webhook_domain_verification: readWebhookDomainVerification(
+          data.metadata,
+          data.webhook_url || "",
+        ),
       });
     } catch (err) {
       next(err);
@@ -515,6 +524,21 @@ function createMerchantsRouter({
         if ("custom_headers" in body) {
           updatePayload.webhook_custom_headers = body.custom_headers ?? null;
         }
+        const { data: existing, error: existingError } = await supabase
+          .from("merchants")
+          .select("metadata")
+          .eq("id", req.merchant.id)
+          .single();
+
+        if (existingError) {
+          existingError.status = 500;
+          throw existingError;
+        }
+
+        const verificationState = createWebhookDomainVerificationState(
+          body.webhook_url || "",
+          existing?.metadata,
+        );
 
         const { data, error } = await supabase
           .from("merchants")
@@ -537,6 +561,48 @@ function createMerchantsRouter({
       }
     },
   );
+
+  router.post("/webhook-settings/verify", async (req, res, next) => {
+    try {
+      const { data, error } = await supabase
+        .from("merchants")
+        .select("webhook_url, metadata")
+        .eq("id", req.merchant.id)
+        .single();
+
+      if (error) {
+        error.status = 500;
+        throw error;
+      }
+
+      if (!data.webhook_url) {
+        return res.status(400).json({
+          error: "Save a webhook URL before starting domain verification.",
+        });
+      }
+
+      const result = await verifyWebhookDomain({
+        webhookUrl: data.webhook_url,
+        metadata: data.metadata,
+      });
+
+      const { error: updateError } = await supabase
+        .from("merchants")
+        .update({ metadata: result.metadata })
+        .eq("id", req.merchant.id);
+
+      if (updateError) {
+        updateError.status = 500;
+        throw updateError;
+      }
+
+      res.json({
+        webhook_domain_verification: result.verification,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
 
   /**
    * @swagger
