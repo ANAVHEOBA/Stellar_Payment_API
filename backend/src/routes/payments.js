@@ -62,9 +62,12 @@ function applyPaymentFilters(query, req) {
   }
   if (typeof search === "string" && search.trim().length > 0) {
     const term = search.trim().replaceAll(",", "\\,");
-    query = query.or(
-      `id.ilike.%${term}%,description.ilike.%${term}%,recipient.ilike.%${term}%`
-    );
+    let orQuery = `id.ilike.%${term}%,description.ilike.%${term}%,recipient.ilike.%${term}%`;
+    const numTerm = Number(term);
+    if (!isNaN(numTerm)) {
+      orQuery += `,amount.eq.${numTerm}`;
+    }
+    query = query.or(orQuery);
   }
   return query;
 }

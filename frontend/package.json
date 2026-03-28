@@ -20,6 +20,7 @@
     "@walletconnect/types": "^2.23.8",
     "boring-avatars": "^2.0.4",
     "canvas-confetti": "^1.9.4",
+    "confetti": "^3.0.4",
     "event-source-polyfill": "^1.0.31",
     "framer-motion": "^12.38.0",
     "marked": "^17.0.5",
