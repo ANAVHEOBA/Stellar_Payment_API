@@ -1,6 +1,21 @@
 import type { Page } from "@playwright/test";
 
 const API_BASE = "http://localhost:4000";
+const MERCHANT_TOKEN_KEY = "merchant_token";
+
+function createMerchantToken() {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" }))
+    .toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      id: merchantMetadata.id,
+      email: merchantMetadata.email,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60,
+    }),
+  ).toString("base64url");
+
+  return `${header}.${payload}.visual-test-signature`;
+}
 
 const merchantMetadata = {
   id: "merchant_test_123",
@@ -24,11 +39,13 @@ export const checkoutPaymentId = "f4e8deaa-8a11-47b3-9b27-a95fa38374f4";
 
 export async function seedMerchantSession(page: Page) {
   await stabilizeVisualTestPage(page);
+  const token = createMerchantToken();
   await page.addInitScript((merchant) => {
     localStorage.setItem("theme", "dark");
+    localStorage.setItem("merchant_token", merchant.token);
     localStorage.setItem("merchant_api_key", merchant.api_key);
     localStorage.setItem("merchant_metadata", JSON.stringify(merchant));
-  }, merchantMetadata);
+  }, { ...merchantMetadata, token });
 }
 
 export async function mockCheckoutPayment(page: Page, overrides: Record<string, unknown> = {}) {
