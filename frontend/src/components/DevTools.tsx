@@ -12,10 +12,10 @@ function highlightJson(jsonString: string): string {
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
-    "/": "&#x2F;"
+    "/": "&#x2F;",
   };
   const escaped = jsonString.replace(/[&<>"'\/]/g, (s) => entityMap[s]);
-  
+
   // Basic Regex for JSON tokenization (strings, numbers, booleans, nulls, keys)
   return escaped.replace(
     /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
@@ -33,7 +33,7 @@ function highlightJson(jsonString: string): string {
         cls = "text-slate-500 italic"; // null
       }
       return `<span class="${cls}">${match}</span>`;
-    }
+    },
   );
 }
 
@@ -46,19 +46,22 @@ export default function DevTools() {
   const [apiKey, setApiKey] = useState(storedApiKey || "");
   const [requestBody, setRequestBody] = useState("{\n  \n}");
   const [jsonError, setJsonError] = useState<string | null>(null);
-  
+
   const [isRunning, setIsRunning] = useState(false);
   const [responseStatus, setResponseStatus] = useState<number | null>(null);
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [responseBody, setResponseBody] = useState<string>("");
+
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
 
   const handleFormat = () => {
     try {
       const parsed = JSON.parse(requestBody);
       setRequestBody(JSON.stringify(parsed, null, 2));
       setJsonError(null);
-    } catch (err: any) {
-      setJsonError(err.message || "Invalid JSON");
+    } catch (error: unknown) {
+      setJsonError(getErrorMessage(error, "Invalid JSON"));
     }
   };
 
@@ -77,8 +80,10 @@ export default function DevTools() {
             JSON.parse(requestBody);
             bodyData = requestBody;
           }
-        } catch (err: any) {
-          throw new Error(`Invalid JSON body: ${err.message}`);
+        } catch (error: unknown) {
+          throw new Error(
+            `Invalid JSON body: ${getErrorMessage(error, "Invalid JSON")}`,
+          );
         }
       }
 
@@ -90,8 +95,8 @@ export default function DevTools() {
       }
 
       // Automatically construct valid endpoint using BASE API if it's relative
-      const url = endpoint.startsWith("http") 
-        ? endpoint 
+      const url = endpoint.startsWith("http")
+        ? endpoint
         : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
 
       const startedAt = performance.now();
@@ -114,10 +119,14 @@ export default function DevTools() {
       setResponseStatus(res.status);
       setResponseTime(Math.round(finishedAt - startedAt));
       setResponseBody(formattedBody);
-
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResponseStatus(0);
-      setResponseBody(error.message || "Request failed to send. Check network or CORS.");
+      setResponseBody(
+        getErrorMessage(
+          error,
+          "Request failed to send. Check network or CORS.",
+        ),
+      );
     } finally {
       setIsRunning(false);
     }
@@ -146,7 +155,9 @@ export default function DevTools() {
               className="w-full sm:w-32 rounded-xl border border-white/10 bg-black/50 px-3 py-3 text-sm font-semibold text-mint outline-none focus:border-mint/50 focus:ring-1 focus:ring-mint/50 cursor-pointer"
             >
               {METHODS.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
             </select>
             <input
@@ -176,7 +187,7 @@ export default function DevTools() {
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">
                 JSON Body
               </label>
-              <button 
+              <button
                 onClick={handleFormat}
                 className="text-xs font-semibold text-mint hover:underline"
               >
@@ -193,7 +204,9 @@ export default function DevTools() {
                 className="absolute inset-0 w-full h-full resize-none bg-transparent p-4 font-mono text-sm leading-relaxed text-slate-200 outline-none placeholder:text-slate-600"
               />
             </div>
-            {jsonError && <p className="text-xs text-red-400 mt-1">{jsonError}</p>}
+            {jsonError && (
+              <p className="text-xs text-red-400 mt-1">{jsonError}</p>
+            )}
           </div>
         </div>
       </div>
@@ -204,7 +217,9 @@ export default function DevTools() {
           <h2 className="text-xl font-semibold text-white">Server Response</h2>
           {responseStatus !== null && (
             <div className="flex items-center gap-4 text-sm">
-              <span className={`font-mono font-bold ${responseStatus >= 200 && responseStatus < 300 ? 'text-green-400' : 'text-red-400'}`}>
+              <span
+                className={`font-mono font-bold ${responseStatus >= 200 && responseStatus < 300 ? "text-green-400" : "text-red-400"}`}
+              >
                 {responseStatus === 0 ? "ERROR" : `Status: ${responseStatus}`}
               </span>
               {responseTime !== null && (
@@ -215,17 +230,27 @@ export default function DevTools() {
             </div>
           )}
         </div>
-        
+
         <div className="relative flex-1 rounded-xl border border-white/10 bg-[#0d1017] shadow-inner overflow-hidden flex min-h-[400px]">
           {responseBody ? (
-            <pre 
+            <pre
               className="absolute inset-0 w-full h-full overflow-auto p-4 font-mono text-sm leading-relaxed pointer-events-auto select-auto focus:outline-none"
               dangerouslySetInnerHTML={{ __html: highlightJson(responseBody) }}
             />
           ) : (
             <div className="m-auto flex flex-col items-center justify-center text-slate-600 gap-3">
-              <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              <svg
+                className="w-12 h-12 opacity-30"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                />
               </svg>
               <p className="text-sm font-medium">Awaiting Execution...</p>
             </div>
