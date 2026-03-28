@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createHmac, timingSafeEqual } from "crypto";
 import { promises as dns } from "dns";
 import { isIP } from "net";
+import { supabase } from "./supabase.js";
 
 /**
  * Checks if a given IP address is private or loopback.
@@ -124,7 +125,24 @@ export function verifyWebhook(rawBody, signatureHeader, merchant) {
   });
 }
 
-async function attempt(url, payload, headers) {
+/**
+ * Log webhook delivery attempt to database
+ */
+async function logWebhookDelivery(paymentId, statusCode, responseBody) {
+  if (!paymentId) return;
+
+  try {
+    await supabase.from("webhook_delivery_logs").insert({
+      payment_id: paymentId,
+      status_code: statusCode,
+      response_body: responseBody ? responseBody.substring(0, 1000) : null // Limit response body size
+    });
+  } catch (err) {
+    console.error("Failed to log webhook delivery:", err.message);
+  }
+}
+
+async function attempt(url, payload, headers, paymentId) {
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -132,14 +150,18 @@ async function attempt(url, payload, headers) {
   });
 
   const text = await response.text().catch(() => "");
+
+  // Log the delivery attempt
+  await logWebhookDelivery(paymentId, response.status, text);
+
   return { ok: response.ok, status: response.status, body: text };
 }
 
-function scheduleRetries(url, payload, headers) {
+function scheduleRetries(url, payload, headers, paymentId) {
   let attemptIndex = 0;
 
   function retry() {
-    attempt(url, payload, headers).then((result) => {
+    attempt(url, payload, headers, paymentId).then((result) => {
       if (!result.ok && attemptIndex < RETRY_DELAYS_MS.length) {
         const delay = RETRY_DELAYS_MS[attemptIndex];
         attemptIndex++;
@@ -162,7 +184,7 @@ function scheduleRetries(url, payload, headers) {
 /**
  * Sends a signed webhook POST request to `url`.
  */
-export async function sendWebhook(url, payload, secret) {
+export async function sendWebhook(url, payload, secret, paymentId = null) {
   if (!url) return { ok: false, skipped: true };
 
   const signingSecret = secret || process.env.WEBHOOK_SECRET || "";
@@ -185,17 +207,23 @@ export async function sendWebhook(url, payload, secret) {
   }
 
   try {
-    const result = await attempt(url, payload, headers);
+    const result = await attempt(url, payload, headers, paymentId);
 
     if (!result.ok) {
       console.warn(`Webhook to ${url} failed with status ${result.status}. Scheduling retries.`);
-      scheduleRetries(url, payload, headers);
+      scheduleRetries(url, payload, headers, paymentId);
     }
 
     return { ...result, signed: !!signingSecret };
   } catch (err) {
     console.error(`Webhook to ${url} encountered an error: ${err.message}. Scheduling retries.`);
-    scheduleRetries(url, payload, headers);
+
+    // Log the error
+    if (paymentId) {
+      await logWebhookDelivery(paymentId, 0, err.message);
+    }
+
+    scheduleRetries(url, payload, headers, paymentId);
     return { ok: false, error: err.message, signed: !!signingSecret };
   }
 }
