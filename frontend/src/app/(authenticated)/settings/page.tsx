@@ -21,6 +21,16 @@ const DEFAULT_BRANDING = {
 
 type SettingsTab = "api" | "branding" | "webhooks";
 
+interface WebhookDomainVerification {
+  status: "verified" | "unverified";
+  domain: string | null;
+  verification_token: string | null;
+  verification_file_url: string | null;
+  checked_at: string | null;
+  verified_at: string | null;
+  failure_reason: string | null;
+}
+
 function normalizeHexInput(value: string) {
   const trimmed = value.trim();
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
@@ -144,6 +154,9 @@ export default function SettingsPage() {
   const [regeneratingSecret, setRegeneratingSecret] = useState(false);
   const [confirmRegenSecret, setConfirmRegenSecret] = useState(false);
   const [webhookRevealedSecret, setWebhookRevealedSecret] = useState(false);
+  const [webhookVerification, setWebhookVerification] =
+    useState<WebhookDomainVerification | null>(null);
+  const [verifyingWebhookDomain, setVerifyingWebhookDomain] = useState(false);
 
   useHydrateMerchantStore();
 
@@ -272,6 +285,7 @@ export default function SettingsPage() {
           throw new Error(data.error ?? "Failed to load webhook settings");
         setWebhookUrl(data.webhook_url ?? "");
         setWebhookSecretMasked(data.webhook_secret_masked ?? "");
+        setWebhookVerification(data.webhook_domain_verification ?? null);
       } catch (err: unknown) {
         const msg =
           err instanceof Error
@@ -326,6 +340,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save webhook URL");
       setWebhookUrl(data.webhook_url ?? "");
+      setWebhookVerification(data.webhook_domain_verification ?? null);
       toast.success(
         data.webhook_url ? "Webhook URL saved" : "Webhook URL cleared",
       );
@@ -336,6 +351,37 @@ export default function SettingsPage() {
       toast.error(msg);
     } finally {
       setSavingWebhook(false);
+    }
+  };
+
+  const verifyWebhookDomain = async () => {
+    if (!apiKey) return;
+
+    setVerifyingWebhookDomain(true);
+    setWebhookSaveError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/webhook-settings/verify`, {
+        method: "POST",
+        headers: { "x-api-key": apiKey },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to verify webhook domain");
+      }
+
+      setWebhookVerification(data.webhook_domain_verification ?? null);
+      toast.success(
+        data.webhook_domain_verification?.status === "verified"
+          ? "Webhook domain verified"
+          : "Webhook domain is still unverified",
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to verify webhook domain";
+      setWebhookSaveError(msg);
+      toast.error(msg);
+    } finally {
+      setVerifyingWebhookDomain(false);
     }
   };
 
@@ -408,6 +454,10 @@ export default function SettingsPage() {
   );
   const lowContrastWarning =
     primaryOnBackground < 4.5 || secondaryOnBackground < 3;
+  const webhookStatusTone =
+    webhookVerification?.status === "verified"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+      : "border-yellow-500/30 bg-yellow-500/10 text-yellow-200";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-10 px-6 py-16">
@@ -697,9 +747,20 @@ export default function SettingsPage() {
             {/* Webhook Endpoint section */}
             <section className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                  Webhook Endpoint
-                </h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Webhook Endpoint
+                  </h2>
+                  {webhookUrl && (
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] ${webhookStatusTone}`}
+                    >
+                      {webhookVerification?.status === "verified"
+                        ? "Verified"
+                        : "Unverified"}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-slate-500">
                   Events like payment confirmations will be sent as POST
                   requests to this URL. Must use HTTPS.
@@ -762,8 +823,79 @@ export default function SettingsPage() {
                   ? "Saving…"
                   : loadingWebhook
                     ? "Loading…"
-                    : "Save Webhook URL"}
+                  : "Save Webhook URL"}
               </button>
+
+              {webhookUrl && webhookVerification && (
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-semibold text-white">
+                      Domain verification
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Host the token below at{" "}
+                      <code className="text-slate-300">
+                        {webhookVerification.verification_file_url}
+                      </code>{" "}
+                      and then verify the domain.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-black/40 p-1 pl-4">
+                    <code className="flex-1 truncate font-mono text-sm text-slate-300">
+                      {webhookVerification.verification_token ?? "—"}
+                    </code>
+                    {webhookVerification.verification_token && (
+                      <CopyButton text={webhookVerification.verification_token} />
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2 text-xs text-slate-500">
+                    <p>
+                      Domain:{" "}
+                      <span className="font-mono text-slate-300">
+                        {webhookVerification.domain ?? "—"}
+                      </span>
+                    </p>
+                    {webhookVerification.checked_at && (
+                      <p>
+                        Last checked:{" "}
+                        <span className="text-slate-300">
+                          {new Date(
+                            webhookVerification.checked_at,
+                          ).toLocaleString()}
+                        </span>
+                      </p>
+                    )}
+                    {webhookVerification.verified_at && (
+                      <p>
+                        Verified at:{" "}
+                        <span className="text-slate-300">
+                          {new Date(
+                            webhookVerification.verified_at,
+                          ).toLocaleString()}
+                        </span>
+                      </p>
+                    )}
+                    {webhookVerification.failure_reason && (
+                      <p className="text-red-400">
+                        {webhookVerification.failure_reason}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={verifyWebhookDomain}
+                    disabled={
+                      savingWebhook || loadingWebhook || verifyingWebhookDomain
+                    }
+                    className="mt-4 h-11 rounded-xl border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {verifyingWebhookDomain ? "Verifying…" : "Verify Domain"}
+                  </button>
+                </div>
+              )}
             </section>
 
             {/* Divider */}
