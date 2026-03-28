@@ -94,7 +94,9 @@
     "checkoutPreview": "Checkout preview",
     "payNow": "Pay now",
     "generating": "Generating...",
-    "generate": "Generate Payment Link"
+    "generate": "Generate Payment Link",
+    "rateLimitError": "You're creating links too quickly. Try again in {seconds} seconds.",
+    "retryWait": "Wait {seconds}s…"
   },
   "paymentMetrics": {
     "downloadImage": "Download Image",
@@ -209,11 +211,21 @@
     "paymentSent": "Payment sent!",
     "paymentFailed": "Payment failed. Please try again.",
     "connectedVia": "Connected via {provider}",
+    "approximateCostLabel": "Approximate cost in XLM",
+    "approximateCostHelp": "Estimated amount to deliver {amount} {asset} to the merchant.",
+    "slippageBuffer": "{percent}% safety buffer included. Max send: {sendMax} {asset}",
+    "pathPaymentTogglePrefix": "Pay with",
+    "pathPaymentToggleSuffix": "instead",
     "processing": "Processing...",
     "payWith": "Pay with {provider}",
     "payWithFallback": "Pay with Wallet",
     "receivedTitle": "This payment has been received.",
     "receivedDescription": "The transaction was confirmed on the Stellar network.",
+    "downloadReceipt": "Download Receipt",
+    "downloadReceiptLoading": "Preparing Receipt...",
+    "receiptDownloaded": "Receipt download started.",
+    "receiptDownloadFailed": "Could not generate the receipt PDF.",
+    "receiptHashUnavailable": "Unavailable",
     "failedTitle": "This payment has failed.",
     "failedDescription": "Contact the merchant if you believe this is an error.",
     "status": {

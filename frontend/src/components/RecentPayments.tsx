@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import PaymentDetailModal from "@/components/PaymentDetailModal";
 import ExportCsvButton from "@/components/ExportCsvButton";
@@ -107,9 +107,7 @@ export default function RecentPayments({
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  // const [, setTotalPages] = useState(1);
-  const [_totalPages, setTotalPages] = useState(1);
+  const page = 1;
   const [totalCount, setTotalCount] = useState(0);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -180,6 +178,9 @@ export default function RecentPayments({
 
     async function fetchPayments() {
       try {
+        setLoading(true);
+        setError(null);
+
         if (!apiKey) {
           setError(t("missingApiKey"));
           setPayments([]);
@@ -188,34 +189,9 @@ export default function RecentPayments({
           return;
         }
 
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-        // Build query params
-        const params = new URLSearchParams({
-          page: page.toString(),
-          limit: LIMIT.toString(),
-        });
-
-        if (filters.search) params.append("search", filters.search);
-        if (filters.status !== "all") params.append("status", filters.status);
-        if (filters.asset !== "all") params.append("asset", filters.asset);
-        if (filters.dateFrom) params.append("date_from", filters.dateFrom);
-        if (filters.dateTo) params.append("date_to", filters.dateTo);
-
-        const response = await fetch(
-          `${apiUrl}/api/payments?${params.toString()}`,
-          {
-            headers: {
-              "x-api-key": apiKey,
-            },
-            signal: controller.signal,
-        setLoading(true);
-        setError(null);
-
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
         const params = buildSearchParams(filters);
-        params.set("page", "1");
+        params.set("page", page.toString());
         params.set("limit", LIMIT.toString());
 
         const response = await fetch(`${apiUrl}/api/payments?${params.toString()}`, {
@@ -384,7 +360,7 @@ export default function RecentPayments({
             </div>
           </div>
         </div>
-      </SkeletonTheme>
+      </div>
     );
   }
 
@@ -794,50 +770,7 @@ export default function RecentPayments({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
-            {payments.map((payment) => (
-              <tr
-                key={payment.id}
-                className={`transition-colors hover:bg-white/5 cursor-pointer ${
-                  flashedIds.has(payment.id)
-                    ? "animate-payment-confirmed bg-green-500/10"
-                    : ""
-                }`}
-                onClick={() => handlePaymentClick(payment.id)}
-              >
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      payment.status === "confirmed"
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-yellow-500/20 text-yellow-400"
-                    }`}
-                  >
-                    {payment.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-medium text-white">
-                  {payment.amount} {payment.asset}
-                </td>
-                <td className="hidden px-4 py-3 text-slate-400 sm:table-cell">
-                  {payment.description || "—"}
-                </td>
-                <td className="hidden px-4 py-3 text-slate-400 md:table-cell">
-                  {new Date(payment.created_at).toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePaymentClick(payment.id);
-                    }}
-                    className="font-mono text-xs text-mint transition-colors hover:text-glow"
-                  >
-                    View →
-                  </button>
-                </td>
-              </tr>
-            </thead>
+
             <tbody className="divide-y divide-white/5">
               {payments.map((payment) => (
                 <tr
@@ -887,7 +820,6 @@ export default function RecentPayments({
             </tbody>
           </table>
         </div>
-      )}
 
       <PaymentDetailModal
         paymentId={selectedPayment}
@@ -895,30 +827,5 @@ export default function RecentPayments({
         onClose={closeModal}
       />
     </div>
-  );
-}
-
-function FilterChip({
-  label,
-  onClear,
-  ariaLabel,
-}: {
-  label: string;
-  onClear: () => void;
-  ariaLabel: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs text-mint">
-      {label}
-      <button
-        onClick={onClear}
-        className="ml-1 rounded-full p-0.5 hover:bg-mint/20"
-        aria-label={ariaLabel}
-      >
-        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </span>
   );
 }
