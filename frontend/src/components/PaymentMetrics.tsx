@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Recharts from "recharts";
-const { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } = Recharts;
+const {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} = Recharts;
 import toast from "react-hot-toast";
 import {
   useHydrateMerchantStore,
@@ -16,15 +25,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
-import "react-loading-skeleton/dist/skeleton.css";
 import { localeToLanguageTag } from "@/i18n/config";
+import MetricsSkeleton from "@/components/MetricsSkeleton";
+import DensityGrid from "@/components/DensityGrid";
 
 type TimeRange = "7D" | "30D" | "1Y";
 type ExportFormat = "png" | "svg";
 
 interface VolumeDataPoint {
   date: string;
+  count: number;
   [asset: string]: number | string;
 }
 
@@ -61,7 +71,31 @@ function colorForAsset(asset: string, index: number): string {
   return ASSET_COLORS[asset] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
-function buildSvgMarkup(svg: SVGSVGElement): { markup: string; width: number; height: number } {
+function computeMovingAverages(
+  data: VolumeDataPoint[],
+  assets: string[],
+  window = 7
+): Record<string, number[]> {
+  const result: Record<string, number[]> = {};
+  for (const asset of assets) {
+    result[asset] = data.map((_, i) => {
+      const start = Math.max(0, i - window + 1);
+      const slice = data.slice(start, i + 1);
+      const sum = slice.reduce((acc, pt) => {
+        const v = pt[asset];
+        return acc + (typeof v === "number" ? v : 0);
+      }, 0);
+      return slice.length > 0 ? sum / slice.length : 0;
+    });
+  }
+  return result;
+}
+
+function buildSvgMarkup(svg: SVGSVGElement): {
+  markup: string;
+  width: number;
+  height: number;
+} {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   const bounds = svg.getBoundingClientRect();
   const width = Math.max(Math.round(bounds.width), 1);
@@ -76,7 +110,10 @@ function buildSvgMarkup(svg: SVGSVGElement): { markup: string; width: number; he
     clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
   }
 
-  const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  const background = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "rect"
+  );
   background.setAttribute("width", "100%");
   background.setAttribute("height", "100%");
   background.setAttribute("fill", "#0f172a");
@@ -101,11 +138,15 @@ function downloadBlob(blob: Blob, filename: string) {
 async function exportChart(
   containerRef: RefObject<HTMLDivElement>,
   format: ExportFormat,
-  filename: string,
+  filename: string
 ) {
-  const svg = containerRef.current?.querySelector("svg");
-  if (!svg) {
-    throw new Error("Chart export is unavailable until the chart finishes rendering.");
+  const svg =
+    containerRef.current?.querySelector("[data-export-chart] svg") ??
+    containerRef.current?.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    throw new Error(
+      "Chart export is unavailable until the chart finishes rendering."
+    );
   }
 
   const { markup, width, height } = buildSvgMarkup(svg);
@@ -124,7 +165,8 @@ async function exportChart(
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const nextImage = new Image();
       nextImage.onload = () => resolve(nextImage);
-      nextImage.onerror = () => reject(new Error("Failed to load chart for PNG export."));
+      nextImage.onerror = () =>
+        reject(new Error("Failed to load chart for PNG export."));
       nextImage.src = url;
     });
 
@@ -162,7 +204,10 @@ function ChartExportButton({
 }: {
   containerRef: RefObject<HTMLDivElement>;
   exporting: boolean;
-  onExport: (format: ExportFormat, containerRef: RefObject<HTMLDivElement>) => Promise<void>;
+  onExport: (
+    format: ExportFormat,
+    containerRef: RefObject<HTMLDivElement>
+  ) => Promise<void>;
   t: ReturnType<typeof useTranslations>;
 }) {
   return (
@@ -186,11 +231,7 @@ function ChartExportButton({
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path
-              d="M5 18.5h14"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M5 18.5h14" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           {exporting ? t("exporting") : t("downloadImage")}
         </button>
@@ -207,7 +248,11 @@ function ChartExportButton({
   );
 }
 
-export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?: boolean }) {
+export default function PaymentMetrics({
+  showSkeleton = false,
+}: {
+  showSkeleton?: boolean;
+}) {
   const t = useTranslations("paymentMetrics");
   const locale = localeToLanguageTag(useLocale());
   const [summary, setSummary] = useState<MetricsResponse | null>(null);
@@ -234,12 +279,19 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
       signal: controller.signal,
     })
       .then((response) =>
-        response.ok ? response.json() : Promise.reject(new Error(t("fetchMetricsFailed"))),
+        response.ok
+          ? response.json()
+          : Promise.reject(new Error(t("fetchMetricsFailed")))
       )
       .then((data: MetricsResponse) => setSummary(data))
       .catch((fetchError) => {
-        if (fetchError instanceof Error && fetchError.name === "AbortError") return;
-        setError(fetchError instanceof Error ? fetchError.message : t("fetchMetricsFailed"));
+        if (fetchError instanceof Error && fetchError.name === "AbortError")
+          return;
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : t("fetchMetricsFailed")
+        );
       });
 
     return () => controller.abort();
@@ -263,12 +315,17 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
       .then((response) =>
         response.ok
           ? response.json()
-          : Promise.reject(new Error(t("fetchVolumeFailed"))),
+          : Promise.reject(new Error(t("fetchVolumeFailed")))
       )
       .then((data: VolumeResponse) => setVolumeData(data))
       .catch((fetchError) => {
-        if (fetchError instanceof Error && fetchError.name === "AbortError") return;
-        setError(fetchError instanceof Error ? fetchError.message : t("fetchVolumeFailed"));
+        if (fetchError instanceof Error && fetchError.name === "AbortError")
+          return;
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : t("fetchVolumeFailed")
+        );
       })
       .finally(() => setLoading(false));
 
@@ -286,12 +343,16 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
 
   const handleExport = async (
     format: ExportFormat,
-    containerRef: RefObject<HTMLDivElement>,
+    containerRef: RefObject<HTMLDivElement>
   ) => {
     setExporting(true);
 
     try {
-      await exportChart(containerRef, format, `multi-asset-volume-${range.toLowerCase()}`);
+      await exportChart(
+        containerRef,
+        format,
+        `multi-asset-volume-${range.toLowerCase()}`
+      );
       toast.success(t("exportSuccess", { format: format.toUpperCase() }));
     } catch (exportError) {
       const message =
@@ -302,44 +363,9 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
     }
   };
 
+  // ── Loading / hydration gate — use the extracted skeleton ─────────────────
   if (showSkeleton || loading || !hydrated) {
-    return (
-      <SkeletonTheme baseColor="#1e293b" highlightColor="#334155">
-        <div className="flex flex-col gap-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                <Skeleton width={100} height={14} borderRadius={4} />
-                <div className="mt-2 flex items-baseline gap-2">
-                  <Skeleton width={120} height={36} borderRadius={6} />
-                  <Skeleton width={40} height={20} borderRadius={4} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex flex-col gap-2">
-                <Skeleton width={240} height={24} borderRadius={6} />
-                <Skeleton width={180} height={16} borderRadius={4} />
-              </div>
-              <div className="flex gap-2">
-                <Skeleton width={100} height={32} borderRadius={8} />
-                <Skeleton width={140} height={32} borderRadius={8} />
-              </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Skeleton width={60} height={24} borderRadius={12} />
-              <Skeleton width={60} height={24} borderRadius={12} />
-            </div>
-            <div className="mt-4 h-[300px]">
-              <Skeleton height="100%" borderRadius={8} />
-            </div>
-          </div>
-        </div>
-      </SkeletonTheme>
-    );
+    return <MetricsSkeleton />;
   }
 
   if (error) {
@@ -357,13 +383,27 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
   }
 
   const assets = volumeData?.assets ?? [];
-  const chartData = (volumeData?.data ?? []).map((dataPoint) => ({
+  const maAverages = computeMovingAverages(volumeData?.data ?? [], assets);
+  const chartData = (volumeData?.data ?? []).map((dataPoint, i) => ({
     ...dataPoint,
     dateShort: new Date(dataPoint.date).toLocaleDateString(locale, {
       month: "short",
       day: "numeric",
     }),
+    ...Object.fromEntries(
+      assets.map((asset) => [`${asset}_ma`, maAverages[asset]?.[i] ?? 0])
+    ),
   }));
+  const densityData =
+    range === "1Y"
+      ? chartData.map((dataPoint) => ({
+          date: dataPoint.date,
+          count:
+            typeof dataPoint.count === "number"
+              ? dataPoint.count
+              : Number(dataPoint.count) || 0,
+        }))
+      : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -429,12 +469,8 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-white">
-              {t("chartTitle")}
-            </h3>
-            <p className="text-xs text-slate-400">
-              {t("chartSubtitle")}
-            </p>
+            <h3 className="font-semibold text-white">{t("chartTitle")}</h3>
+            <p className="text-xs text-slate-400">{t("chartSubtitle")}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -449,7 +485,9 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
                       : "text-slate-400 hover:text-white"
                   }`}
                   aria-pressed={range === nextRange}
-                  aria-label={t("showRange", { range: t(`ranges.${nextRange}`) })}
+                  aria-label={t("showRange", {
+                    range: t(`ranges.${nextRange}`),
+                  })}
                 >
                   {nextRange}
                 </button>
@@ -486,7 +524,11 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
                   }`}
                   style={{ borderColor: color, color }}
                   aria-pressed={!hidden}
-                  aria-label={hidden ? t("showAsset", { asset }) : t("hideAsset", { asset })}
+                  aria-label={
+                    hidden
+                      ? t("showAsset", { asset })
+                      : t("hideAsset", { asset })
+                  }
                 >
                   <span
                     className="inline-block h-2 w-2 rounded-full"
@@ -502,64 +544,86 @@ export default function PaymentMetrics({ showSkeleton = false }: { showSkeleton?
           </div>
         )}
 
+        {densityData.length > 0 && <DensityGrid data={densityData} />}
+
         {assets.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
             {t("noPayments")}
           </p>
         ) : (
-          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="#1e293b"
-                horizontal
-                vertical={false}
-              />
-              <XAxis
-                dataKey="dateShort"
-                stroke="#64748b"
-                style={{ fontSize: "12px" }}
-              />
-              <YAxis
-                stroke="#64748b"
-                style={{ fontSize: "12px" }}
-                tickFormatter={(value) => value.toLocaleString()}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#0f172a",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                  padding: "8px 12px",
-                }}
-                labelStyle={{ color: "#e2e8f0", fontSize: "12px" }}
-                formatter={(value: number, name: string) => [
-                  `${value.toLocaleString()} ${name}`,
-                  name,
-                ]}
-              />
-              <Legend wrapperStyle={{ display: "none" }} />
-              {assets.map((asset, index) =>
-                hiddenAssets.has(asset) ? null : (
-                  <Line
-                    key={asset}
-                    type="monotone"
-                    dataKey={asset}
-                    name={asset}
-                    stroke={colorForAsset(asset, index)}
-                    strokeWidth={2}
-                    dot={{ fill: colorForAsset(asset, index), r: 3 }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive
-                    animationDuration={400}
-                  />
-                ),
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+          <div data-export-chart>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#1e293b"
+                  horizontal
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="dateShort"
+                  stroke="#64748b"
+                  style={{ fontSize: "12px" }}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  style={{ fontSize: "12px" }}
+                  tickFormatter={(value) => value.toLocaleString()}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                  }}
+                  labelStyle={{ color: "#e2e8f0", fontSize: "12px" }}
+                  formatter={(value: number, name: string) => [
+                    `${value.toLocaleString()} ${name}`,
+                    name,
+                  ]}
+                />
+                <Legend wrapperStyle={{ display: "none" }} />
+                {assets.map((asset, index) =>
+                  hiddenAssets.has(asset) ? null : (
+                    <Line
+                      key={asset}
+                      type="monotone"
+                      dataKey={asset}
+                      name={asset}
+                      stroke={colorForAsset(asset, index)}
+                      strokeWidth={2}
+                      dot={{ fill: colorForAsset(asset, index), r: 3 }}
+                      activeDot={{ r: 5 }}
+                      isAnimationActive
+                      animationDuration={400}
+                    />
+                  )
+                )}
+                {assets.map((asset, index) =>
+                  hiddenAssets.has(asset) ? null : (
+                    <Line
+                      key={`${asset}_ma`}
+                      type="monotone"
+                      dataKey={`${asset}_ma`}
+                      name={`${asset} ${t("weeklyAvgLabel")}`}
+                      stroke={colorForAsset(asset, index)}
+                      strokeWidth={1.5}
+                      strokeDasharray="4 4"
+                      dot={false}
+                      activeDot={false}
+                      isAnimationActive
+                      animationDuration={400}
+                      connectNulls
+                    />
+                  )
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>

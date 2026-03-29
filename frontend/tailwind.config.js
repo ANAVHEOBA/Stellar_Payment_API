@@ -5,10 +5,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        night: "#0b0c10",
-        tide: "#0f1a2b",
-        mint: "#5ef2c0",
-        glow: "#b8ffe2"
+        night: "var(--color-night)",
+        tide: "var(--color-tide)",
+        mint: "var(--color-mint)",
+        glow: "var(--color-glow)"
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

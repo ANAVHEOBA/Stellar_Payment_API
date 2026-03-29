@@ -1,5 +1,7 @@
 "use client";
 
+import GuestGuard from "@/components/GuestGuard";
+import SystemStatus from "@/components/SystemStatus";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -519,9 +521,12 @@ function Footer() {
   return (
     <footer className="border-t border-white/[0.06] py-10">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
-        <span className="font-mono text-xs uppercase tracking-[0.25em] text-slate-600">
-          Stellar Pay
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-xs uppercase tracking-[0.25em] text-slate-600">
+            Stellar Pay
+          </span>
+          <SystemStatus />
+        </div>
         <div className="flex gap-6 text-xs text-slate-600">
           <Link href="/login" className="transition-colors hover:text-slate-300">
             Login
@@ -541,6 +546,7 @@ function Footer() {
 
 export default function Home() {
   return (
+    <GuestGuard>
     <main className="relative min-h-screen overflow-x-hidden">
       {/* subtle grid texture */}
       <div
@@ -561,5 +567,6 @@ export default function Home() {
         <Footer />
       </div>
     </main>
+    </GuestGuard>
   );
 }
